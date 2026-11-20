@@ -99,7 +99,7 @@ def schedule_meal(token: str, start: datetime, end: datetime, options: dict) -> 
 
         print(f'[Diag] variante {name}: HTTP {response.status_code}, mensagens={sorted(messages)}')
 
-        if 'Token inv\u00e1lido.' not in messages:
+        if not any('Token inv' in m for m in messages):
             print(f'[Diag] variante {name} passou da autenticacao.')
             return data
 
