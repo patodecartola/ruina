@@ -129,23 +129,61 @@ if len(tomorrow_schedules) != 0:
         for schedule in tomorrow_schedules:
             print(f"Agendando refeições para o RU {schedule['restaurant']}... ({schedule})")
 
-            statuses = schedule_meal(access_token, tomorrow, tomorrow, schedule)
+            response = schedule_meal(access_token, tomorrow, tomorrow, schedule)
+
+            if isinstance(response, dict):
+                print(f'[Diag] Resposta dict, chaves: {sorted(response.keys())}')
+
+                if response.get('error'):
+                    print(f"[Erro] {response.get('mensagem')}")
+                    failed = True
+
+                statuses = (
+                    response.get('refeicoes')
+                    or response.get('agendamentos')
+                    or response.get('lista')
+                    or []
+                )
+            elif isinstance(response, list):
+                statuses = response
+            else:
+                print(f'[Diag] Resposta inesperada: {type(response).__name__}')
+                statuses = []
+                failed = True
+
+            if not statuses:
+                print('[Erro] A API nao retornou nenhum status de agendamento.')
+                failed = True
 
             for status in statuses:
-                date = datetime.strptime(status['dataRefAgendada'], '%Y-%m-%d %H:%M:%S')
-                message = (
-                    f"{date.strftime('%d/%m/%Y')} - "
-                    f"RU {schedule['restaurant']} ({status['tipoRefeicao']}): "
-                )
+                if not isinstance(status, dict):
+                    print(f'[Diag] Status inesperado: {type(status).__name__}')
+                    failed = True
+                    continue
 
-                if status['sucesso']:
+                print(f'[Diag] Chaves do status: {sorted(status.keys())}')
+
+                raw_date = (
+                    status.get('dataRefAgendada')
+                    or status.get('dataRefeicao')
+                    or status.get('data')
+                )
+                meal = status.get('tipoRefeicao') or status.get('descricao') or '?'
+                label = raw_date.split(' ')[0] if isinstance(raw_date, str) else '?'
+                message = f"{label} - RU {schedule['restaurant']} ({meal}): "
+
+                if status.get('sucesso'):
                     print(message + 'Agendado com sucesso.')
                 else:
-                    print('[Erro] ' + message + status['impedimento'] + '.')
+                    reason = (
+                        status.get('impedimento')
+                        or status.get('mensagem')
+                        or 'motivo nao informado'
+                    )
+                    print('[Erro] ' + message + str(reason) + '.')
                     failed = True
 
         if failed:
             sys.exit(1)
 else:
     print('Não há nenhuma refeição para ser agendada amanhã.')
-
