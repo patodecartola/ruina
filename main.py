@@ -36,8 +36,6 @@ def login(username: str, password: str) -> str:
 
     data = response.json()
 
-    print(f'[Diag] Chaves do login: {sorted(data.keys())}')
-
     if data['error']:
         raise Exception(data['mensagem'])
     
@@ -66,44 +64,17 @@ def build_payload(start: datetime, end: datetime, options: dict) -> dict:
 
     return payload
 
-def header_variants(token: str) -> list:
-    device = config['environment']['device-id']
-    app = config['environment']['app']
-
-    return [
-        ('atual', {'X-UFSM-Device-ID': device, 'X-UFSM-Access-Token': token}),
-        ('com-app', {'X-UFSM-Device-ID': device, 'X-UFSM-Access-Token': token, 'X-UFSM-App': app}),
-        ('bearer', {'X-UFSM-Device-ID': device, 'Authorization': f'Bearer {token}'}),
-        ('so-token', {'X-UFSM-Access-Token': token}),
-        ('minusculo', {'x-ufsm-device-id': device, 'x-ufsm-access-token': token}),
-    ]
-
 def schedule_meal(token: str, start: datetime, end: datetime, options: dict) -> list:
-    payload = build_payload(start, end, options)
+    response = requests.post(
+        f'{BASE_URL}/ru/agendaRefeicoes',
+        json=build_payload(start, end, options),
+        headers={
+            'X-UFSM-Device-ID': config['environment']['device-id'],
+            'X-UFSM-Access-Token': token
+        }
+    )
 
-    for name, headers in header_variants(token):
-        response = requests.post(f'{BASE_URL}/ru/agendaRefeicoes', json=payload, headers=headers)
-
-        try:
-            data = response.json()
-        except Exception:
-            print(f'[Diag] variante {name}: HTTP {response.status_code}, resposta nao-JSON')
-            continue
-
-        if isinstance(data, list):
-            messages = {str(d.get('mensagem')) for d in data if isinstance(d, dict)}
-        elif isinstance(data, dict):
-            messages = {str(data.get('mensagem'))}
-        else:
-            messages = {'?'}
-
-        print(f'[Diag] variante {name}: HTTP {response.status_code}, mensagens={sorted(messages)}')
-
-        if not any('Token inv' in m for m in messages):
-            print(f'[Diag] variante {name} passou da autenticacao.')
-            return data
-
-    return []
+    return response.json()
 
 def find_schedules(date):
     filtered_schedules = filter(
@@ -115,25 +86,25 @@ def find_schedules(date):
 
 parser = ArgumentParser(
     prog='ruina',
-    description='Agenda automaticamente as refeições do RU da UFSM.'
+    description='Agenda automaticamente as refei\u00e7\u00f5es do RU da UFSM.'
 )
 
-parser.add_argument('-u', '--username', dest='username', help='Sua matrícula do aplicativo da UFSM.')
+parser.add_argument('-u', '--username', dest='username', help='Sua matr\u00edcula do aplicativo da UFSM.')
 parser.add_argument('-p', '--password', dest='password', help='Sua senha do aplicativo da UFSM.')
 
 args = parser.parse_args()
 
-print('Lendo configuração...')
+print('Lendo configura\u00e7\u00e3o...')
 config = read_config()
 
-print('Procurando refeições para serem agendadas amanhã...')
+print('Procurando refei\u00e7\u00f5es para serem agendadas amanh\u00e3...')
 now = datetime.now(ZoneInfo('America/Sao_Paulo'))
 tomorrow = now + timedelta(1)
 
 tomorrow_schedules = find_schedules(tomorrow)
 
 if len(tomorrow_schedules) != 0:
-    print(f'Encontrado {len(tomorrow_schedules)} refeição(s) para serem agendadas.')
+    print(f'Encontrado {len(tomorrow_schedules)} refei\u00e7\u00e3o(s) para serem agendadas.')
 
     try:
         print('Logando no aplicativo...')
@@ -144,13 +115,11 @@ if len(tomorrow_schedules) != 0:
         failed = False
 
         for schedule in tomorrow_schedules:
-            print(f"Agendando refeições para o RU {schedule['restaurant']}... ({schedule})")
+            print(f"Agendando refei\u00e7\u00f5es para o RU {schedule['restaurant']}... ({schedule})")
 
             response = schedule_meal(access_token, tomorrow, tomorrow, schedule)
 
             if isinstance(response, dict):
-                print(f'[Diag] Resposta dict, chaves: {sorted(response.keys())}')
-
                 if response.get('error'):
                     print(f"[Erro] {response.get('mensagem')}")
                     failed = True
@@ -164,7 +133,7 @@ if len(tomorrow_schedules) != 0:
             elif isinstance(response, list):
                 statuses = response
             else:
-                print(f'[Diag] Resposta inesperada: {type(response).__name__}')
+                print(f'[Erro] Resposta inesperada: {type(response).__name__}')
                 statuses = []
                 failed = True
 
@@ -174,11 +143,9 @@ if len(tomorrow_schedules) != 0:
 
             for status in statuses:
                 if not isinstance(status, dict):
-                    print(f'[Diag] Status inesperado: {type(status).__name__}')
+                    print(f'[Erro] Status inesperado: {type(status).__name__}')
                     failed = True
                     continue
-
-                print(f'[Diag] Chaves do status: {sorted(status.keys())}')
 
                 raw_date = (
                     status.get('dataRefAgendada')
