@@ -1,7 +1,7 @@
 import sys
 import requests
 import yaml
-import pytz
+from zoneinfo import ZoneInfo
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 
@@ -101,8 +101,8 @@ parser = ArgumentParser(
     description='Agenda automaticamente as refeições do RU da UFSM.'
 )
 
-parser.add_argument('-u --username', dest='username', help='Sua matrícula do aplicativo da UFSM.')
-parser.add_argument('-p --password', dest='password', help='Sua senha do aplicativo da UFSM.')
+parser.add_argument('-u', '--username', dest='username', help='Sua matrícula do aplicativo da UFSM.')
+parser.add_argument('-p', '--password', dest='password', help='Sua senha do aplicativo da UFSM.')
 
 args = parser.parse_args()
 
@@ -110,7 +110,7 @@ print('Lendo configuração...')
 config = read_config()
 
 print('Procurando refeições para serem agendadas amanhã...')
-now = datetime.now(pytz.timezone('Brazil/East'))
+now = datetime.now(ZoneInfo('America/Sao_Paulo'))
 tomorrow = now + timedelta(1)
 
 tomorrow_schedules = find_schedules(tomorrow)
