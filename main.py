@@ -36,12 +36,14 @@ def login(username: str, password: str) -> str:
 
     data = response.json()
 
+    print(f'[Diag] Chaves do login: {sorted(data.keys())}')
+
     if data['error']:
         raise Exception(data['mensagem'])
     
     return data['token']
 
-def schedule_meal(token: str, start: datetime, end: datetime, options: dict) -> list:
+def build_payload(start: datetime, end: datetime, options: dict) -> dict:
     payload = {
         'dataInicio': start.strftime('%Y-%m-%d %H:%M:%S'),
         'dataFim': end.strftime('%Y-%m-%d %H:%M:%S'),
@@ -50,43 +52,58 @@ def schedule_meal(token: str, start: datetime, end: datetime, options: dict) -> 
         'tiposRefeicoes': []
     }
 
-    if options['coffee']:
-        payload['tiposRefeicoes'].append({
-            'descricao': 'Café',
-            'error': False,
-            'item': 1,
-            'itemId': 1,
-            'selecionado': True
-        })
+    meals = [('coffee', 'Caf\u00e9', 1), ('lunch', 'Almo\u00e7o', 2), ('dinner', 'Janta', 3)]
 
-    if options['lunch']:
-        payload['tiposRefeicoes'].append({
-            'descricao': 'Almoço',
-            'error': False,
-            'item': 2,
-            'itemId': 2,
-            'selecionado': True
-        })
+    for key, label, item in meals:
+        if options[key]:
+            payload['tiposRefeicoes'].append({
+                'descricao': label,
+                'error': False,
+                'item': item,
+                'itemId': item,
+                'selecionado': True
+            })
 
-    if options['dinner']:
-        payload['tiposRefeicoes'].append({
-            'descricao': 'Janta',
-            'error': False,
-            'item': 3,
-            'itemId': 3,
-            'selecionado': True
-        })
+    return payload
 
-    response = requests.post(
-        f'{BASE_URL}/ru/agendaRefeicoes',
-        json=payload,
-        headers={
-            'X-UFSM-Device-ID': config['environment']['device-id'],
-            'X-UFSM-Access-Token': token
-        }    
-    )
+def header_variants(token: str) -> list:
+    device = config['environment']['device-id']
+    app = config['environment']['app']
 
-    return response.json()
+    return [
+        ('atual', {'X-UFSM-Device-ID': device, 'X-UFSM-Access-Token': token}),
+        ('com-app', {'X-UFSM-Device-ID': device, 'X-UFSM-Access-Token': token, 'X-UFSM-App': app}),
+        ('bearer', {'X-UFSM-Device-ID': device, 'Authorization': f'Bearer {token}'}),
+        ('so-token', {'X-UFSM-Access-Token': token}),
+        ('minusculo', {'x-ufsm-device-id': device, 'x-ufsm-access-token': token}),
+    ]
+
+def schedule_meal(token: str, start: datetime, end: datetime, options: dict) -> list:
+    payload = build_payload(start, end, options)
+
+    for name, headers in header_variants(token):
+        response = requests.post(f'{BASE_URL}/ru/agendaRefeicoes', json=payload, headers=headers)
+
+        try:
+            data = response.json()
+        except Exception:
+            print(f'[Diag] variante {name}: HTTP {response.status_code}, resposta nao-JSON')
+            continue
+
+        if isinstance(data, list):
+            messages = {str(d.get('mensagem')) for d in data if isinstance(d, dict)}
+        elif isinstance(data, dict):
+            messages = {str(data.get('mensagem'))}
+        else:
+            messages = {'?'}
+
+        print(f'[Diag] variante {name}: HTTP {response.status_code}, mensagens={sorted(messages)}')
+
+        if 'Token inv\u00e1lido.' not in messages:
+            print(f'[Diag] variante {name} passou da autenticacao.')
+            return data
+
+    return []
 
 def find_schedules(date):
     filtered_schedules = filter(
@@ -186,4 +203,4 @@ if len(tomorrow_schedules) != 0:
         if failed:
             sys.exit(1)
 else:
-    print('Não há nenhuma refeição para ser agendada amanhã.')
+    print('N\u00e3o h\u00e1 nenhuma refei\u00e7\u00e3o para ser agendada amanh\u00e3.')
