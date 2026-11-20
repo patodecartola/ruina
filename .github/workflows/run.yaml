@@ -2,8 +2,8 @@ name: Ruina
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 9 * * *'
+  # schedule:
+  #   - cron: '0 9 * * *'   # desativado: a API da UFSM rejeita o token (ver conversa)
 
 jobs:
   ruina:
